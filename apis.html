@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Browser Hardening Test · Risky JavaScript APIs</title>
+<meta name="description" content="Check which high-risk JavaScript APIs, such as WebGL, WebRTC and WebUSB, a web page can reach in your browser.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231d4ed8'/%3E%3Cpath d='M16 6l8 3v6c0 5-3.4 8.6-8 10-4.6-1.4-8-5-8-10V9z' fill='none' stroke='white' stroke-width='2.4' stroke-linejoin='round'/%3E%3Cpath d='M12.5 16l2.5 2.5 4.5-5' fill='none' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --ink: #0f172a; --ink2: #475569; --ink3: #94a3b8;
+    --line: #e2e8f0; --accent: #1d4ed8;
+    --on: #c2410c; --on-soft: #fff4ed; --on-line: #fed7aa;
+    --off: #15803d; --off-soft: #ecfdf3; --off-line: #bbf7d0;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--ink); font: 15px/1.5 "Segoe UI", system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif; }
+  a { color: var(--accent); text-decoration: none; }
+  header { background: var(--card); border-bottom: 1px solid var(--line); }
+  .bar { max-width: 1120px; margin: 0 auto; padding: 0 24px; height: 60px; display: flex; align-items: center; gap: 28px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; color: var(--ink); letter-spacing: -0.01em; }
+  .brand svg { width: 28px; height: 28px; }
+  .bar nav { display: flex; gap: 22px; margin-left: auto; font-size: 14px; }
+  .bar nav a { color: var(--ink2); }
+  .bar nav a.cur { color: var(--ink); font-weight: 600; }
+  main { max-width: 1120px; margin: 0 auto; padding: 28px 24px 48px; }
+  h1 { font-size: 30px; line-height: 1.2; margin: 0 0 6px; letter-spacing: -0.02em; }
+  .lede { color: var(--ink2); margin: 0 0 22px; max-width: 760px; }
+
+  .summary { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px 24px; display: flex; align-items: center; gap: 18px; }
+  .summary .icon { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; flex: none; background: #f1f5f9; }
+  .summary .icon svg { width: 28px; height: 28px; }
+  .summary h2 { font-size: 21px; margin: 0; letter-spacing: -0.01em; }
+  .summary p { margin: 2px 0 0; color: var(--ink2); font-size: 14px; }
+  .summary .meta { margin-left: auto; text-align: right; font-size: 13px; color: var(--ink2); }
+  .summary .meta b { color: var(--ink); font-weight: 600; }
+  button { font: inherit; font-size: 14px; font-weight: 600; color: #fff; background: var(--accent); border: 0; border-radius: 8px; padding: 9px 16px; cursor: pointer; margin-top: 8px; }
+  button:disabled { opacity: .55; cursor: default; }
+  .summary.on { border-color: var(--on-line); background: linear-gradient(90deg, var(--on-soft), var(--card) 55%); }
+  .summary.on .icon { background: #ffedd5; color: var(--on); }
+  .summary.off { border-color: var(--off-line); background: linear-gradient(90deg, var(--off-soft), var(--card) 55%); }
+  .summary.off .icon { background: #dcfce7; color: var(--off); }
+
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 18px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+  .card h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink2); margin: 0; padding: 14px 20px; border-bottom: 1px solid var(--line); font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  td { padding: 10px 20px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  tr:last-child td { border-bottom: 0; }
+  td.name { font-weight: 600; }
+  td.name .d { display: block; font-weight: 400; color: var(--ink2); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  td.name .d.blk { color: var(--off); }
+  td.res { text-align: right; white-space: nowrap; width: 128px; padding-left: 0; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; border-radius: 999px; padding: 3px 11px; border: 1px solid; }
+  .pill.on { color: var(--on); background: var(--on-soft); border-color: var(--on-line); }
+  .pill.off { color: var(--off); background: var(--off-soft); border-color: var(--off-line); }
+  .pill.wait, .pill.na { color: var(--ink3); background: #f8fafc; border-color: var(--line); }
+  .pill .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  .spin { width: 12px; height: 12px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: s .7s linear infinite; }
+  @keyframes s { to { transform: rotate(360deg); } }
+
+  .how { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 26px; }
+  .how div { font-size: 13.5px; color: var(--ink2); }
+  .how b { display: block; color: var(--ink); font-size: 14px; margin-bottom: 3px; }
+  footer { max-width: 1120px; margin: 0 auto; padding: 0 24px 32px; font-size: 12.5px; color: var(--ink3); }
+  @media (max-width: 860px) { .grid, .how { grid-template-columns: 1fr; } .summary { flex-wrap: wrap; } .summary .meta { margin-left: 0; text-align: left; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <a class="brand" href="./">
+      <svg viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#1d4ed8"/><path d="M16 6l8 3v6c0 5-3.4 8.6-8 10-4.6-1.4-8-5-8-10V9z" fill="none" stroke="#fff" stroke-width="2.4" stroke-linejoin="round"/><path d="M12.5 16l2.5 2.5 4.5-5" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Browser Hardening Test
+    </a>
+    <nav>
+      <a href="./">JIT &amp; WebAssembly</a>
+      <a class="cur" href="apis.html">Risky APIs</a>
+      <a href="#how">How it works</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <h1>Which risky JavaScript APIs can a page reach?</h1>
+  <p class="lede">Some browser APIs reach hardware, fingerprint the device or open network paths. Exploits and trackers lean on them. Hardened browsers switch them off for risky sites. This test checks each one, live, in this tab.</p>
+
+  <section class="summary" id="summary">
+    <div class="icon" id="sumIcon"><span class="spin"></span></div>
+    <div>
+      <h2 id="sumTitle">Checking APIs…</h2>
+      <p id="sumText">Asking the browser for each API, without prompting you for anything.</p>
+    </div>
+    <div class="meta">
+      <div><b id="ua">Detecting browser…</b></div>
+      <div id="when">&nbsp;</div>
+      <button id="again" disabled>Run test again</button>
+    </div>
+  </section>
+
+  <div class="grid">
+    <section class="card">
+      <h3>Device fingerprinting &amp; media</h3>
+      <table id="t0"></table>
+    </section>
+    <section class="card">
+      <h3>Hardware access</h3>
+      <table id="t1"></table>
+    </section>
+  </div>
+
+  <section class="how" id="how">
+    <div><b>What counts as exposed</b>The page can read the API. Where it is safe to do so without a permission prompt, the test also shows what the page learned.</div>
+    <div><b>What counts as blocked</b>Reading the API fails, or the browser removed it. The browser's own message is shown under the API name.</div>
+    <div><b>Privacy</b>Everything runs in this tab. Nothing is uploaded, stored or tracked, and no device is ever opened.</div>
+  </section>
+</main>
+<footer>Browser Hardening Test · static page, no cookies, no analytics.</footer>
+
+<script>
+const $ = id => document.getElementById(id);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const n = (k, one, many) => `${k} ${k === 1 ? one : many}`;
+
+// Each probe reads the API the way a page would. Returning a string means exposed (the string says what the page learned);
+// returning null means the browser does not have the API at all. A thrown error means blocked.
+const PROBES = [
+  { g: 0, name: 'WebGL', run: () => {
+      const gl = document.createElement('canvas').getContext('webgl');
+      if (!gl) return 'Available, no GPU details';
+      const ext = gl.getExtension('WEBGL_debug_renderer_info');
+      const gpu = gl.getParameter(ext ? ext.UNMASKED_RENDERER_WEBGL : gl.RENDERER);
+      return 'Reads your GPU: ' + String(gpu).replace(/^ANGLE \((.*)\)$/, '$1');
+    } },
+  { g: 0, name: 'WebRTC', run: async () => {
+      const pc = new RTCPeerConnection(); pc.close();
+      const devs = await navigator.mediaDevices.enumerateDevices();
+      return `Opens peer connections, sees ${n(devs.length, 'media device', 'media devices')}`;
+    } },
+  { g: 0, name: 'Web Audio', run: async () => {
+      const ctx = new AudioContext(); const rate = ctx.sampleRate; await ctx.close();
+      return `Audio engine fingerprint: ${rate.toLocaleString('en-US')} Hz`;
+    } },
+  { g: 0, name: 'Clipboard', run: () => navigator.clipboard ? 'Can read and write the clipboard' : null },
+  { g: 0, name: 'Speech', run: () => (window.SpeechSynthesisUtterance || window.webkitSpeechRecognition) ? 'Can listen to and speak to you' : null },
+  { g: 0, name: 'Media recording', run: () => window.MediaRecorder ? 'Can record the screen, camera or a canvas' : null },
+  { g: 0, name: 'Credentials', run: () => window.PasswordCredential ? 'Can read and store saved passwords' : null },
+  { g: 1, name: 'WebUSB', run: async () => {
+      if (!navigator.usb) return null;
+      const d = await navigator.usb.getDevices();
+      return `Talks to USB devices directly, ${n(d.length, 'paired device', 'paired devices')}`;
+    } },
+  { g: 1, name: 'WebHID', run: async () => {
+      if (!navigator.hid) return null;
+      const d = await navigator.hid.getDevices();
+      return `Reads keyboards, mice and other HID devices, ${n(d.length, 'paired', 'paired')}`;
+    } },
+  { g: 1, name: 'Web Serial', run: async () => {
+      if (!navigator.serial) return null;
+      const p = await navigator.serial.getPorts();
+      return `Opens serial ports, ${n(p.length, 'paired port', 'paired ports')}`;
+    } },
+  { g: 1, name: 'Web Bluetooth', run: () => (navigator.bluetooth && typeof navigator.bluetooth.requestDevice === 'function') ? 'Can pair with nearby Bluetooth devices' : null },
+  { g: 1, name: 'Web MIDI', run: () => typeof navigator.requestMIDIAccess === 'function' ? 'Can drive MIDI instruments and firmware' : null },
+  { g: 1, name: 'Gamepad', run: () => {
+      if (typeof navigator.getGamepads !== 'function') return null;
+      const pads = [...navigator.getGamepads()].filter(Boolean);
+      return `Reads game controllers, ${pads.length} connected`;
+    } },
+  { g: 1, name: 'Motion sensors', run: () => (window.Accelerometer || window.Gyroscope) ? 'Reads accelerometer and gyroscope' : null },
+];
+
+function pill(state) {
+  if (state === 'wait') return '<span class="pill wait"><span class="spin"></span>Testing</span>';
+  if (state === 'on') return '<span class="pill on"><span class="dot"></span>Exposed</span>';
+  if (state === 'off') return '<span class="pill off"><span class="dot"></span>Blocked</span>';
+  return '<span class="pill na">Not in this browser</span>';
+}
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+function render() {
+  [0, 1].forEach(g => {
+    $('t' + g).innerHTML = PROBES.map((p, i) => p.g !== g ? '' :
+      `<tr><td class="name">${p.name}<span class="d" id="d${i}">&nbsp;</span></td><td class="res" id="r${i}">${pill('wait')}</td></tr>`).join('');
+  });
+}
+
+async function runAll() {
+  $('again').disabled = true;
+  $('summary').className = 'summary';
+  $('sumIcon').innerHTML = '<span class="spin"></span>';
+  $('sumTitle').textContent = 'Checking APIs…';
+  $('sumText').textContent = 'Asking the browser for each API, without prompting you for anything.';
+  render();
+  await sleep(600);
+
+  let exposed = 0, blocked = 0;
+  for (let i = 0; i < PROBES.length; i++) {
+    await sleep(220);
+    let state, detail;
+    try {
+      detail = await PROBES[i].run();
+      state = detail === null ? 'na' : 'on';
+    } catch (e) {
+      state = 'off';
+      detail = (e && e.message) || 'Blocked by the browser';
+    }
+    if (state === 'on') exposed++;
+    if (state === 'off') blocked++;
+    $('r' + i).innerHTML = pill(state);
+    const d = $('d' + i);
+    d.textContent = state === 'na' ? 'This browser does not have this API' : detail;
+    d.title = d.textContent;
+    d.className = 'd' + (state === 'off' ? ' blk' : '');
+  }
+
+  const total = exposed + blocked;
+  const hardened = exposed === 0 && blocked > 0;
+  $('summary').className = 'summary ' + (hardened ? 'off' : 'on');
+  $('sumIcon').innerHTML = hardened
+    ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 8-7 9.5C8 19 5 15.5 5 11V6z"/><path d="M9 12l2 2 4-4"/></svg>'
+    : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 8-7 9.5C8 19 5 15.5 5 11V6z"/><path d="M12 8v4.5M12 16h.01"/></svg>';
+  $('sumTitle').textContent = hardened ? `Hardened: all ${total} risky APIs are blocked`
+    : blocked === 0 ? `Exposed: all ${total} risky APIs are open to this page`
+    : `Partly hardened: ${exposed} of ${total} risky APIs are open`;
+  $('sumText').textContent = hardened ? 'This page cannot reach your hardware, fingerprint your device or open peer-to-peer connections.'
+    : 'Any page you open can reach your hardware, fingerprint your device and open peer-to-peer connections.';
+  $('when').textContent = 'Tested ' + new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  $('again').disabled = false;
+}
+
+(function detectUA() {
+  const ua = navigator.userAgent;
+  const m = ua.match(/(Edg|Chrome|Firefox|Version)\/(\d+)/);
+  const name = !m ? 'Unknown browser' : m[1] === 'Edg' ? 'Microsoft Edge' : m[1] === 'Chrome' ? 'Chromium' : m[1] === 'Firefox' ? 'Firefox' : 'Safari';
+  const os = /Windows/.test(ua) ? 'Windows' : /Mac OS X/.test(ua) ? 'macOS' : /Android/.test(ua) ? 'Android' : /Linux/.test(ua) ? 'Linux' : '';
+  $('ua').textContent = `${name}${m ? ' ' + m[2] : ''}${os ? ' on ' + os : ''}`;
+})();
+
+$('again').addEventListener('click', runAll);
+runAll();
+</script>
+</body>
+</html>
