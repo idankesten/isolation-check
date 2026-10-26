@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Browser Hardening Test · JIT &amp; WebAssembly check</title>
+<meta name="description" content="Check whether your browser runs web pages with the JavaScript JIT compiler and WebAssembly turned off.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231d4ed8'/%3E%3Cpath d='M16 6l8 3v6c0 5-3.4 8.6-8 10-4.6-1.4-8-5-8-10V9z' fill='none' stroke='white' stroke-width='2.4' stroke-linejoin='round'/%3E%3Cpath d='M12.5 16l2.5 2.5 4.5-5' fill='none' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --ink: #0f172a; --ink2: #475569; --ink3: #94a3b8;
+    --line: #e2e8f0; --accent: #1d4ed8; --accent-soft: #eff4ff;
+    --on: #c2410c; --on-soft: #fff4ed; --on-line: #fed7aa;
+    --off: #15803d; --off-soft: #ecfdf3; --off-line: #bbf7d0;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--ink); font: 15px/1.5 "Segoe UI", system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif; }
+  a { color: var(--accent); text-decoration: none; }
+  header { background: var(--card); border-bottom: 1px solid var(--line); }
+  .bar { max-width: 1120px; margin: 0 auto; padding: 0 24px; height: 60px; display: flex; align-items: center; gap: 28px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; color: var(--ink); letter-spacing: -0.01em; }
+  .brand svg { width: 28px; height: 28px; }
+  .bar nav { display: flex; gap: 22px; margin-left: auto; font-size: 14px; }
+  .bar nav a { color: var(--ink2); }
+  .bar nav a.cur { color: var(--ink); font-weight: 600; }
+  main { max-width: 1120px; margin: 0 auto; padding: 28px 24px 48px; }
+  h1 { font-size: 30px; line-height: 1.2; margin: 0 0 6px; letter-spacing: -0.02em; }
+  .lede { color: var(--ink2); margin: 0 0 22px; max-width: 760px; }
+
+  .summary { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px 24px; display: flex; align-items: center; gap: 18px; }
+  .summary .icon { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; flex: none; background: #f1f5f9; }
+  .summary .icon svg { width: 28px; height: 28px; }
+  .summary h2 { font-size: 21px; margin: 0; letter-spacing: -0.01em; }
+  .summary p { margin: 2px 0 0; color: var(--ink2); font-size: 14px; }
+  .summary .meta { margin-left: auto; text-align: right; font-size: 13px; color: var(--ink2); }
+  .summary .meta b { color: var(--ink); font-weight: 600; }
+  button { font: inherit; font-size: 14px; font-weight: 600; color: #fff; background: var(--accent); border: 0; border-radius: 8px; padding: 9px 16px; cursor: pointer; margin-top: 8px; }
+  button:disabled { opacity: .55; cursor: default; }
+  .summary.on { border-color: var(--on-line); background: linear-gradient(90deg, var(--on-soft), var(--card) 55%); }
+  .summary.on .icon { background: #ffedd5; color: var(--on); }
+  .summary.off { border-color: var(--off-line); background: linear-gradient(90deg, var(--off-soft), var(--card) 55%); }
+  .summary.off .icon { background: #dcfce7; color: var(--off); }
+
+  .grid { display: grid; grid-template-columns: 1fr 340px; gap: 18px; margin-top: 18px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+  .card h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink2); margin: 0; padding: 14px 20px; border-bottom: 1px solid var(--line); font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 11px 20px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  tr:last-child td { border-bottom: 0; }
+  td.name { font-weight: 600; white-space: nowrap; }
+  td.desc { color: var(--ink2); font-size: 13.5px; }
+  td.res { text-align: right; white-space: nowrap; width: 1%; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; border-radius: 999px; padding: 3px 11px; border: 1px solid; }
+  .pill.on { color: var(--on); background: var(--on-soft); border-color: var(--on-line); }
+  .pill.off { color: var(--off); background: var(--off-soft); border-color: var(--off-line); }
+  .pill.wait { color: var(--ink3); background: #f8fafc; border-color: var(--line); }
+  .pill .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  .spin { width: 12px; height: 12px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: s .7s linear infinite; }
+  @keyframes s { to { transform: rotate(360deg); } }
+
+  .speed { padding: 18px 20px 20px; }
+  .score { font-size: 40px; font-weight: 700; letter-spacing: -0.02em; line-height: 1; font-variant-numeric: tabular-nums; }
+  .score small { font-size: 14px; font-weight: 600; color: var(--ink2); letter-spacing: 0; margin-left: 4px; }
+  .verdict { margin-top: 6px; font-size: 14px; color: var(--ink2); min-height: 21px; }
+  .track { margin-top: 16px; height: 10px; border-radius: 99px; background: #eef2f7; position: relative; overflow: hidden; }
+  .fill { position: absolute; inset: 0 auto 0 0; width: 0; border-radius: 99px; background: var(--accent); transition: width .5s ease; }
+  .scale { display: flex; justify-content: space-between; font-size: 12px; color: var(--ink3); margin-top: 6px; }
+  .subs { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 12px; font-size: 13px; color: var(--ink2); }
+  .subs div { display: flex; justify-content: space-between; padding: 3px 0; font-variant-numeric: tabular-nums; }
+  .subs b { color: var(--ink); font-weight: 600; }
+  .prog { height: 3px; background: var(--accent); width: 0; transition: width .1s linear; }
+
+  .how { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 26px; }
+  .how div { font-size: 13.5px; color: var(--ink2); }
+  .how b { display: block; color: var(--ink); font-size: 14px; margin-bottom: 3px; }
+  footer { max-width: 1120px; margin: 0 auto; padding: 0 24px 32px; font-size: 12.5px; color: var(--ink3); }
+  @media (max-width: 860px) { .grid, .how { grid-template-columns: 1fr; } .summary { flex-wrap: wrap; } .summary .meta { margin-left: 0; text-align: left; } td.desc { display: none; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <a class="brand" href="./">
+      <svg viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#1d4ed8"/><path d="M16 6l8 3v6c0 5-3.4 8.6-8 10-4.6-1.4-8-5-8-10V9z" fill="none" stroke="#fff" stroke-width="2.4" stroke-linejoin="round"/><path d="M12.5 16l2.5 2.5 4.5-5" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Browser Hardening Test
+    </a>
+    <nav>
+      <a class="cur" href="#">Test</a>
+      <a href="#how">How it works</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+  </div>
+  <div class="prog" id="prog"></div>
+</header>
+
+<main>
+  <h1>Is this browser hardened against exploits?</h1>
+  <p class="lede">Many browser exploits go through the JavaScript JIT compiler or WebAssembly. Hardened modes turn both off for risky sites. This test checks both, live, in this tab.</p>
+
+  <section class="summary" id="summary">
+    <div class="icon" id="sumIcon"><span class="spin"></span></div>
+    <div>
+      <h2 id="sumTitle">Running tests…</h2>
+      <p id="sumText">Checking the JavaScript engine and WebAssembly support.</p>
+    </div>
+    <div class="meta">
+      <div><b id="ua">Detecting browser…</b></div>
+      <div id="when">&nbsp;</div>
+      <button id="again" disabled>Run test again</button>
+    </div>
+  </section>
+
+  <div class="grid">
+    <section class="card">
+      <h3>Exploit surface</h3>
+      <table id="tests"></table>
+    </section>
+    <section class="card">
+      <h3>JavaScript engine speed</h3>
+      <div class="speed">
+        <div class="score" id="score">–<small>points</small></div>
+        <div class="verdict" id="verdict">&nbsp;</div>
+        <div class="track"><div class="fill" id="fill"></div></div>
+        <div class="scale"><span>Interpreter only</span><span>JIT compiled</span></div>
+        <div class="subs" id="subs">
+          <div><span>Integer math</span><b id="s0">–</b></div>
+          <div><span>Floating point</span><b id="s1">–</b></div>
+          <div><span>Typed arrays</span><b id="s2">–</b></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <section class="how" id="how">
+    <div><b>JIT compiler</b>Times three CPU-bound JavaScript workloads. With the JIT on, the engine compiles them to machine code. With it off, they stay in the interpreter and run many times slower.</div>
+    <div><b>WebAssembly</b>Compiles and runs a tiny module, then validates one small module per feature. Feature byte patterns come from wasm-feature-detect (Apache 2.0).</div>
+    <div id="faq"><b>Privacy</b>Everything runs in this tab. Nothing is uploaded, stored or tracked.</div>
+  </section>
+</main>
+<footer>Browser Hardening Test · static page, no cookies, no analytics.</footer>
+
+<script>
+// A JIT-compiled engine scores above this; an interpreter-only engine scores far below it.
+const JIT_THRESHOLD = 2000;
+const BAR_MAX = 12000;
+
+const W = typeof WebAssembly === 'object' ? WebAssembly : null;
+const bytes = a => new Uint8Array(a);
+// add(a, b) -> a + b
+const ADD = bytes([0,97,115,109,1,0,0,0,1,7,1,96,2,127,127,1,127,3,2,1,0,7,7,1,3,97,100,100,0,0,10,9,1,7,0,32,0,32,1,106,11]);
+const validate = b => { try { return W ? W.validate(b) : false; } catch { return false; } };
+
+const TESTS = [
+  { id: 'jit', name: 'JavaScript JIT compiler', desc: 'Compiles hot JavaScript to native machine code' },
+  { id: 'wasm', name: 'WebAssembly', desc: 'Compiles and runs binary modules',
+    run: async () => { try { if (!W) return false; const { instance } = await W.instantiate(ADD); return instance.exports.add(2, 3) === 5; } catch { return false; } } },
+  { id: 'stream', name: 'Streaming compilation', desc: 'Compiles WebAssembly while it downloads',
+    run: async () => { try { if (!W || !W.compileStreaming) return false; await W.compileStreaming(new Response(ADD, { headers: { 'Content-Type': 'application/wasm' } })); return true; } catch { return false; } } },
+  { id: 'simd', name: 'WebAssembly SIMD', desc: '128-bit vector instructions',
+    run: async () => validate(bytes([0,97,115,109,1,0,0,0,1,5,1,96,0,1,123,3,2,1,0,10,10,1,8,0,65,0,253,15,253,98,11])) },
+  { id: 'bulk', name: 'Bulk memory', desc: 'Fast memory copy and fill operations',
+    run: async () => validate(bytes([0,97,115,109,1,0,0,0,1,4,1,96,0,0,3,2,1,0,5,3,1,0,1,10,14,1,12,0,65,0,65,0,65,0,252,10,0,0,11])) },
+  { id: 'exc', name: 'Exception handling', desc: 'Native try / catch inside WebAssembly',
+    run: async () => validate(bytes([0,97,115,109,1,0,0,0,1,4,1,96,0,0,3,2,1,0,10,8,1,6,0,6,64,25,11,11])) },
+  { id: 'tail', name: 'Tail calls', desc: 'Guaranteed tail-call optimization',
+    run: async () => validate(bytes([0,97,115,109,1,0,0,0,1,4,1,96,0,0,3,2,1,0,10,6,1,4,0,18,0,11])) },
+  { id: 'gc', name: 'Garbage collection', desc: 'Managed structs and arrays in WebAssembly',
+    run: async () => validate(bytes([0,97,115,109,1,0,0,0,1,5,1,95,1,120,0])) },
+];
+
+const $ = id => document.getElementById(id);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const fmt = n => Math.round(n).toLocaleString('en-US');
+
+function pill(state, text) {
+  if (state === 'wait') return '<span class="pill wait"><span class="spin"></span>Testing</span>';
+  if (state === 'on') return `<span class="pill on"><span class="dot"></span>${text || 'ON · exposed'}</span>`;
+  return `<span class="pill off"><span class="dot"></span>${text || 'OFF · hardened'}</span>`;
+}
+
+function render() {
+  $('tests').innerHTML = TESTS.map(t =>
+    `<tr><td class="name">${t.name}</td><td class="desc">${t.desc}</td><td class="res" id="r-${t.id}">${pill('wait')}</td></tr>`).join('');
+}
+
+const workloads = [
+  n => { let a = 0; for (let i = 0; i < n; i++) a = (a + ((i * i) ^ (i >>> 3))) | 0; return a; },
+  n => { let x = 0.5; for (let i = 0; i < n; i++) x = x * 1.0000001 + Math.sqrt(i & 1023) * 1e-9; return x; },
+  n => { const t = new Int32Array(4096); for (let i = 0; i < n; i++) t[i & 4095] = (t[(i * 7) & 4095] + i) | 0; return t[17]; },
+];
+
+async function bench(fn, warmMs, runMs, onTick) {
+  // Grow the chunk until one call takes ~4 ms, well above the coarsened timer resolution.
+  let chunk = 5000;
+  const end = performance.now() + warmMs;
+  while (performance.now() < end) {
+    const t0 = performance.now();
+    fn(chunk);
+    if (performance.now() - t0 < 4) chunk *= 2;
+  }
+  let ops = 0, busy = 0, lastYield = performance.now();
+  while (busy < runMs) {
+    const t0 = performance.now();
+    fn(chunk);
+    const t1 = performance.now();
+    busy += t1 - t0; ops += chunk;
+    if (t1 - lastYield > 50) { onTick(busy / runMs); await sleep(0); lastYield = performance.now(); }
+  }
+  return ops / busy / 100;
+}
+
+async function runAll() {
+  $('again').disabled = true;
+  $('summary').className = 'summary';
+  $('sumIcon').innerHTML = '<span class="spin"></span>';
+  $('sumTitle').textContent = 'Running tests…';
+  $('sumText').textContent = 'Checking the JavaScript engine and WebAssembly support.';
+  $('score').innerHTML = '–<small>points</small>';
+  $('verdict').innerHTML = '&nbsp;';
+  $('fill').style.width = '0';
+  [0, 1, 2].forEach(i => $('s' + i).textContent = '–');
+  render();
+  await sleep(500);
+
+  const subs = [];
+  for (let i = 0; i < workloads.length; i++) {
+    const v = await bench(workloads[i], 250, 700, p => { $('prog').style.width = ((i + p) / workloads.length * 100) + '%'; });
+    subs.push(v);
+    $('s' + i).textContent = fmt(v);
+  }
+  $('prog').style.width = '100%';
+  setTimeout(() => $('prog').style.width = '0', 400);
+  const score = Math.cbrt(subs[0] * subs[1] * subs[2]);
+  const jitOn = score >= JIT_THRESHOLD;
+  $('score').innerHTML = `${fmt(score)}<small>points</small>`;
+  $('fill').style.width = Math.min(100, score / BAR_MAX * 100) + '%';
+  $('fill').style.background = jitOn ? 'var(--on)' : 'var(--off)';
+  $('verdict').textContent = jitOn ? 'JIT compiled: JavaScript runs as native code' : 'Interpreter only: no native code is generated';
+  $('r-jit').innerHTML = pill(jitOn ? 'on' : 'off');
+
+  const results = { jit: jitOn };
+  for (const t of TESTS.slice(1)) {
+    await sleep(260);
+    results[t.id] = await t.run();
+    $('r-' + t.id).innerHTML = pill(results[t.id] ? 'on' : 'off');
+  }
+
+  const wasmOn = results.wasm;
+  const hardened = !jitOn && !wasmOn;
+  $('summary').className = 'summary ' + (hardened ? 'off' : 'on');
+  $('sumIcon').innerHTML = hardened
+    ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 8-7 9.5C8 19 5 15.5 5 11V6z"/><path d="M9 12l2 2 4-4"/></svg>'
+    : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 8-7 9.5C8 19 5 15.5 5 11V6z"/><path d="M12 8v4.5M12 16h.01"/></svg>';
+  $('sumTitle').textContent = hardened ? 'Hardened: JIT and WebAssembly are off'
+    : (jitOn && wasmOn) ? 'Not hardened: JIT and WebAssembly are on'
+    : jitOn ? 'Partly hardened: the JIT is on' : 'Partly hardened: WebAssembly is on';
+  $('sumText').textContent = hardened ? 'Pages run in the interpreter, with no native code generation. A large class of browser exploits has nothing to target.'
+    : 'Pages can generate and run native code, the attack surface most browser exploits target.';
+  $('when').textContent = 'Tested ' + new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  $('again').disabled = false;
+}
+
+(function detectUA() {
+  const ua = navigator.userAgent;
+  const m = ua.match(/(Edg|Chrome|Firefox|Version)\/(\d+)/);
+  const name = !m ? 'Unknown browser' : m[1] === 'Edg' ? 'Microsoft Edge' : m[1] === 'Chrome' ? 'Chromium' : m[1] === 'Firefox' ? 'Firefox' : 'Safari';
+  const os = /Windows/.test(ua) ? 'Windows' : /Mac OS X/.test(ua) ? 'macOS' : /Android/.test(ua) ? 'Android' : /Linux/.test(ua) ? 'Linux' : '';
+  $('ua').textContent = `${name}${m ? ' ' + m[2] : ''}${os ? ' on ' + os : ''}`;
+})();
+
+$('again').addEventListener('click', runAll);
+runAll();
+</script>
+</body>
+</html>
