@@ -69,6 +69,7 @@
   .subs { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 12px; font-size: 13px; color: var(--ink2); }
   .subs div { display: flex; justify-content: space-between; padding: 3px 0; font-variant-numeric: tabular-nums; }
   .subs b { color: var(--ink); font-weight: 600; }
+  .subs.ref b { color: var(--ink2); font-weight: 500; }
   .prog { height: 3px; background: var(--accent); width: 0; transition: width .1s linear; }
 
   .how { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 26px; }
@@ -128,6 +129,10 @@
           <div><span>Floating point</span><b id="s1">–</b></div>
           <div><span>Typed arrays</span><b id="s2">–</b></div>
         </div>
+        <div class="subs ref">
+          <div><span>Typical with the JIT</span><b>3,000 – 15,000</b></div>
+          <div><span>Typical interpreter only</span><b>150 – 700</b></div>
+        </div>
       </div>
     </section>
   </div>
@@ -143,7 +148,7 @@
 <script>
 // A JIT-compiled engine scores above this; an interpreter-only engine scores far below it.
 const JIT_THRESHOLD = 2000;
-const BAR_MAX = 12000;
+const BAR_MAX = 7000;
 
 const W = typeof WebAssembly === 'object' ? WebAssembly : null;
 const bytes = a => new Uint8Array(a);
